@@ -23,7 +23,7 @@ variable "profile" {
   description = "The AWS profile configured locally"
 }
 variable "aws_region" {
-	description = "Region for VPC"
+	description = "Provide the Region"
 }
 variable "aws_vpcname"{
 	description = "Provide VPC Name"
@@ -89,3 +89,55 @@ variable "s3roleName"{
 variable "ec2InstanceProfile"{
 	default="ec2-s3-profile"
 }
+variable "CodeDeploy-EC2-S3"{
+	default="CodeDeploy-EC2-S3"
+}
+variable "GH-Upload-To-S3"{
+	default="GH-Upload-To-S3"
+}
+
+variable "ghactions_username"{
+	default="ghactions"
+}
+
+variable "GH-Code-Deploy"{
+	default= "GH-Code-Deploy"
+}
+
+variable "CodeDeployEC2ServiceRole"{
+	default="CodeDeployEC2ServiceRole"
+}
+
+variable "CodeDeployServiceRole"{
+	default="CodeDeployServiceRole"
+}
+
+variable "account_id"{
+	description = "Provide account_id"
+}
+
+variable "CodeDeployServiceRole_policy"{
+	default="arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole"
+}
+
+variable "codedeploy_appname"{
+	default="csye6225-webapp"
+}
+
+variable "codedeploy_group"{
+	default="csye6225-webapp-deployment"
+}
+
+variable "zoneId"{
+	description = "Provide hosted zone id"
+}
+
+variable "record_name"{
+	description = "Enter Record Name ex: api.dev.venkateshcsye6225.me"
+}
+variable "codedeploy_bucket_arn"{
+	description = "Enter Record Name ex: arn:aws:s3:::codedeploy.dev.venkateshcsye6225.me"
+}
+variable "codedeploy_bucket_arn_star"{
+	description = "Enter Record Name ex: arn:aws:s3:::codedeploy.dev.venkateshcsye6225.me/*"
+}	
