@@ -299,7 +299,217 @@ resource "aws_iam_role_policy_attachment" "role_policy_attacher" {
   policy_arn = aws_iam_policy.WebAppS3.arn
 }
 
+#resource "aws_iam_instance_profile" "ec2_s3_profile" {
+#  name = var.ec2InstanceProfile
+#  role = aws_iam_role.ec2role.name
+#}
+
+# This policy is required for EC2 instances to download latest application revision.
+resource "aws_iam_policy" "CodeDeploy_EC2_S3" {
+  name        = "${var.CodeDeploy-EC2-S3}"
+  description = "Policy for EC2 instance to store and retrieve  artifacts in S3"
+policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:Get*",
+        "s3:List*"
+      ],
+      "Resource": [ "${var.codedeploy_bucket_arn}" , "${var.codedeploy_bucket_arn_star}" ]
+    }
+  ]
+}
+EOF
+}
+# Policy allows GitHub Actions to upload artifacts from latest successful build to dedicated S3 bucket used by CodeDeploy.
+resource "aws_iam_policy" "GH_Upload_To_S3" {
+  name        = "${var.GH-Upload-To-S3}"
+  description = "Policy for Github actions script to store artifacts in S3"
+policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:Get*",
+        "s3:List*"
+      ],
+      "Resource": [ "${var.codedeploy_bucket_arn}" , "${var.codedeploy_bucket_arn_star}" ]
+    }
+  ]
+}
+EOF
+}
+
+
+# policy allows GitHub Actions to call CodeDeploy APIs to initiate application deployment on EC2 instances.
+resource "aws_iam_policy" "GH_Code_Deploy" {
+  name        = "${var.GH-Code-Deploy}"
+  description = "Policy allows GitHub Actions to call CodeDeploy APIs to initiate application deployment on EC2 instances."
+policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "codedeploy:RegisterApplicationRevision",
+        "codedeploy:GetApplicationRevision"
+      ],
+      "Resource": [
+        "arn:aws:codedeploy:${var.aws_region}:${var.account_id}:application:${var.codedeploy_appname}"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "codedeploy:CreateDeployment",
+        "codedeploy:GetDeployment"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "codedeploy:GetDeploymentConfig"
+      ],
+      "Resource": [
+        "arn:aws:codedeploy:${var.aws_region}:${var.account_id}:deploymentconfig:CodeDeployDefault.OneAtATime",
+        "arn:aws:codedeploy:${var.aws_region}:${var.account_id}:deploymentconfig:CodeDeployDefault.HalfAtATime",
+        "arn:aws:codedeploy:${var.aws_region}:${var.account_id}:deploymentconfig:CodeDeployDefault.AllAtOnce"
+      ]
+    }
+  ]
+}
+EOF
+}
+
+#attach policies to ghactions user
+
+#attaching CodeDeploy_EC2_S3 policy to ghactions  user
+resource "aws_iam_user_policy_attachment" "attach_GH_Upload_To_S3" {
+  user       = var.ghactions_username
+  policy_arn = aws_iam_policy.GH_Upload_To_S3.arn
+}
+
+#attaching GH_Code_Deploy policy to ghactions  user
+resource "aws_iam_user_policy_attachment" "attach_GH_Code_Deploy" {
+  user       = var.ghactions_username
+  policy_arn = aws_iam_policy.GH_Code_Deploy.arn
+}
+
+# create Role for Code Deploy
+resource "aws_iam_role" "CodeDeployEC2ServiceRole" {
+  name = var.CodeDeployEC2ServiceRole
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+  {
+    "Action": "sts:AssumeRole",
+    "Principal": {
+    "Service": "ec2.amazonaws.com"
+    },
+    "Effect": "Allow",
+    "Sid": ""
+  }
+  ]
+}
+EOF
+  tags = {
+    Name = "CodeDeployEC2ServiceRole access policy"
+  }
+}
+
+#create CodeDeployServiceRole role
+resource "aws_iam_role" "CodeDeployServiceRole" {
+  name = var.CodeDeployServiceRole
+  # policy below has to be edited
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "codedeploy.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+  tags = {
+    Name = "CodeDeployEC2Role access policy"
+  }
+}
+
+#Policy to be attached with CodeDeployServiceRole role
+resource "aws_iam_role_policy_attachment" "CodeDeployEC2ServiceRole_webapps3_policy_attacher" {
+  role       = aws_iam_role.CodeDeployEC2ServiceRole.name
+  policy_arn = aws_iam_policy.WebAppS3.arn
+}
+
 resource "aws_iam_instance_profile" "ec2_s3_profile" {
   name = var.ec2InstanceProfile
-  role = aws_iam_role.ec2role.name
+  role = aws_iam_role.CodeDeployEC2ServiceRole.name
+}
+
+#Policy to be attached with CodeDeployServiceRole role
+resource "aws_iam_role_policy_attachment" "CodeDeployServiceRole_policy_attacher" {
+  role       = aws_iam_role.CodeDeployServiceRole.name
+  policy_arn = var.CodeDeployServiceRole_policy
+}
+
+
+
+#attach policies to codedeploy role
+resource "aws_iam_role_policy_attachment" "CodeDeployEC2ServiceRole_policy_attacher" {
+  role       = aws_iam_role.CodeDeployEC2ServiceRole.name
+  policy_arn = aws_iam_policy.CodeDeploy_EC2_S3.arn
+}
+
+# Code Deploy Applicaiton 
+resource "aws_codedeploy_app" "codedeploy_app" {
+  compute_platform = "Server"
+  name             = var.codedeploy_appname
+}
+
+#  CodeDeploy Deployment Group
+resource "aws_codedeploy_deployment_group" "example" {
+  app_name              = aws_codedeploy_app.codedeploy_app.name
+  deployment_group_name = var.codedeploy_group
+  service_role_arn      = aws_iam_role.CodeDeployServiceRole.arn
+  deployment_config_name = "CodeDeployDefault.AllAtOnce"
+  deployment_style {
+    deployment_option = "WITHOUT_TRAFFIC_CONTROL"
+    deployment_type   = "IN_PLACE"
+  }
+  auto_rollback_configuration {
+    enabled = true
+    events  = ["DEPLOYMENT_FAILURE"]
+  }
+  ec2_tag_set {
+    ec2_tag_filter {
+      key   = "Name"
+      type  = "KEY_AND_VALUE"
+      value = "App Server"
+    }
+  }
+}
+
+resource "aws_route53_record" "record" {
+  zone_id = var.zoneId
+  name    = var.record_name
+  type    = "A"
+  ttl     = "300"
+  records = [aws_instance.appserver.public_ip]
 }
