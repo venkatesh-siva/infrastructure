@@ -141,3 +141,6 @@ variable "codedeploy_bucket_arn"{
 variable "codedeploy_bucket_arn_star"{
 	description = "Enter Record Name ex: arn:aws:s3:::codedeploy.dev.venkateshcsye6225.me/*"
 }	
+variable "cloudwatch_policy_arn"{
+ default = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}

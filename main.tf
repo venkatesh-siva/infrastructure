@@ -513,3 +513,8 @@ resource "aws_route53_record" "record" {
   ttl     = "300"
   records = [aws_instance.appserver.public_ip]
 }
+
+resource "aws_iam_role_policy_attachment" "ec2-cloudwatch-attach" {
+ role = "${aws_iam_role.CodeDeployEC2ServiceRole.name}"
+ policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
