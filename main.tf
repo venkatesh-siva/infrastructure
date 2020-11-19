@@ -91,34 +91,34 @@ name = "application security group"
 description = "Open ports 22, 80, 443 and 8080"
 vpc_id = aws_vpc.csye6225_vpc.id
 
-ingress{
-description = "Allow inbound HTTP traffic"
-from_port = "80"
-to_port = "80"
-protocol = "tcp"
-cidr_blocks = [var.routeTable_cidr]
-}
-ingress{
-description = "Allow inbound SSH traffic"
-from_port = "22"
-to_port = "22"
-protocol = "tcp"
-cidr_blocks = [var.routeTable_cidr]
-}
-ingress{
-description = "Allow inbound HTTPS traffic"
-from_port = "443"
-to_port = "443"
-protocol = "tcp"
-cidr_blocks = [var.routeTable_cidr]
-}
-ingress{
-description = "Allow traffic to application port"
-from_port = "8080"
-to_port = "8080"
-protocol = "tcp"
-cidr_blocks = [var.routeTable_cidr]
-}
+#ingress{
+#description = "Allow inbound HTTP traffic"
+#from_port = "80"
+#to_port = "80"
+#protocol = "tcp"
+#cidr_blocks = [var.routeTable_cidr]
+#}
+#ingress{
+#description = "Allow inbound SSH traffic"
+#from_port = "22"
+#to_port = "22"
+##protocol = "tcp"
+#cidr_blocks = [var.routeTable_cidr]
+#}
+#ingress{
+#description = "Allow inbound HTTPS traffic"
+#from_port = "443"
+#to_port = "443"
+#protocol = "tcp"
+#cidr_blocks = [var.routeTable_cidr]
+#}
+#ingress{
+#description = "Allow traffic to application port"
+#from_port = "8080"
+#to_port = "8080"
+#protocol = "tcp"
+#cidr_blocks = [var.routeTable_cidr]
+#}
 egress {
   from_port   = 0
   to_port     = 0
@@ -139,13 +139,14 @@ description = "Allow inbound Database traffic"
 from_port = "3306"
 to_port = "3306"
 protocol = "tcp"
-cidr_blocks = [var.subnet1_cidr]
+#cidr_blocks = [var.subnet1_cidr]
+security_groups = [aws_security_group.app_security_group.id]
 }
 egress {
   from_port   = 0
   to_port     = 0
   protocol    = "-1"
-  cidr_blocks  = [var.subnet1_cidr]
+  cidr_blocks  = [var.routeTable_cidr]
   }
 tags ={
 Name = "DB security group"
@@ -202,35 +203,35 @@ resource "aws_db_instance" "database_server" {
     Name = "MySQL Database Server"
   }
 }
-resource "aws_instance" "appserver" {
-  ami                                  = var.ami_id
-  instance_type                        = var.ec2_instance_type
-  disable_api_termination              = false
-  instance_initiated_shutdown_behavior = var.terminate
-  vpc_security_group_ids               = [aws_security_group.app_security_group.id]
-  subnet_id                            = "${aws_subnet.subnet1.id}"
-  iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
-  depends_on = [aws_db_instance.database_server]
-  key_name = var.keyname
-  root_block_device {
-    volume_type = "gp2"
-    volume_size = 20
-    delete_on_termination = true
-  }
-   user_data     = <<-EOF
- #!/bin/bash
- sudo echo export "S3_BUCKET_NAME=${aws_s3_bucket.bucket.bucket}" >> /etc/environment
- sudo echo export "DB_ENDPOINT=${aws_db_instance.database_server.endpoint}" >> /etc/environment
- sudo echo export "DB_NAME=${aws_db_instance.database_server.name}" >> /etc/environment
- sudo echo export "DB_USERNAME=${aws_db_instance.database_server.username}" >> /etc/environment
- sudo echo export "DB_PASSWORD=${aws_db_instance.database_server.password}" >> /etc/environment
- sudo echo export "AWS_REGION=${var.aws_region}" >> /etc/environment
- sudo echo export "AWS_PROFILE=${var.profile}" >> /etc/environment
- EOF
-  tags = {
-    Name = "App Server"
-  }
-}
+#resource "aws_instance" "appserver" {
+#  ami                                  = var.ami_id
+#  instance_type                        = var.ec2_instance_type
+#  disable_api_termination              = false
+#  instance_initiated_shutdown_behavior = var.terminate
+#  vpc_security_group_ids               = [aws_security_group.app_security_group.id]
+#  subnet_id                            = "${aws_subnet.subnet1.id}"
+#  iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
+#  depends_on = [aws_db_instance.database_server]
+#  key_name = var.keyname
+#  root_block_device {
+#    volume_type = "gp2"
+#    volume_size = 20
+#    delete_on_termination = true
+#  }
+#   user_data     = <<-EOF
+# #!/bin/bash
+# sudo echo export "S3_BUCKET_NAME=${aws_s3_bucket.bucket.bucket}" >> /etc/environment
+# sudo echo export "DB_ENDPOINT=${aws_db_instance.database_server.endpoint}" >> /etc/environment
+# sudo echo export "DB_NAME=${aws_db_instance.database_server.name}" >> /etc/environment
+# sudo echo export "DB_USERNAME=${aws_db_instance.database_server.username}" >> /etc/environment
+# sudo echo export "DB_PASSWORD=${aws_db_instance.database_server.password}" >> /etc/environment
+# sudo echo export "AWS_REGION=${var.aws_region}" >> /etc/environment
+# sudo echo export "AWS_PROFILE=${var.profile}" >> /etc/environment
+# EOF
+#  tags = {
+#    Name = "App Server"
+#  }
+#}
 
 resource "aws_dynamodb_table_item" "dynamo_db_item" {
   table_name = aws_dynamodb_table.dynamodb_table.name
@@ -506,15 +507,231 @@ resource "aws_codedeploy_deployment_group" "example" {
   }
 }
 
-resource "aws_route53_record" "record" {
-  zone_id = var.zoneId
-  name    = var.record_name
-  type    = "A"
-  ttl     = "300"
-  records = [aws_instance.appserver.public_ip]
-}
+#resource "aws_route53_record" "record" {
+#  zone_id = var.zoneId
+#  name    = var.record_name
+#  type    = "A"
+#  ttl     = "300"
+#  records = [aws_instance.appserver.public_ip]
+#}
 
 resource "aws_iam_role_policy_attachment" "ec2-cloudwatch-attach" {
  role = "${aws_iam_role.CodeDeployEC2ServiceRole.name}"
  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
+
+// Creating launch configuration
+resource "aws_launch_configuration" "asg_launch_config" {
+  name = "asg_launch_config"
+  image_id      = "${var.ami_id}"
+  instance_type = "t2.micro"
+  key_name = "${var.keyname}"
+  associate_public_ip_address = true
+  user_data = <<-EOF
+ #!/bin/bash
+ sudo echo export "S3_BUCKET_NAME=${aws_s3_bucket.bucket.bucket}" >> /etc/environment
+ sudo echo export "DB_ENDPOINT=${aws_db_instance.database_server.endpoint}" >> /etc/environment
+ sudo echo export "DB_NAME=${aws_db_instance.database_server.name}" >> /etc/environment
+ sudo echo export "DB_USERNAME=${aws_db_instance.database_server.username}" >> /etc/environment
+ sudo echo export "DB_PASSWORD=${aws_db_instance.database_server.password}" >> /etc/environment
+ sudo echo export "AWS_REGION=${var.aws_region}" >> /etc/environment
+ sudo echo export "AWS_PROFILE=${var.profile}" >> /etc/environment
+ EOF
+  iam_instance_profile = aws_iam_instance_profile.ec2_s3_profile.name
+  security_groups = ["${aws_security_group.app_security_group.id}"]
+   root_block_device {
+    volume_type = "gp2"
+    volume_size = 20
+    delete_on_termination = true
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+// Auto scaling group for EC2
+resource "aws_autoscaling_group" "asg" {
+  name                 = "asg"
+  launch_configuration = "${aws_launch_configuration.asg_launch_config.name}"
+  default_cooldown     = 60
+  min_size             = 3
+  max_size             = 5
+  desired_capacity     = 3
+  vpc_zone_identifier  = ["${aws_subnet.subnet1.id}","${aws_subnet.subnet2.id}", "${aws_subnet.subnet3.id}"]
+  target_group_arns    = ["${aws_lb_target_group.lb-target-group.arn}"]
+
+  lifecycle {
+    create_before_destroy = true
+  }
+  tag {
+    key                 = "Name"
+    value               = "App Server"
+    propagate_at_launch = true
+  }
+}
+
+# AUTOSCALING POLICIES for EC2 autoscaling group
+
+# Scale up policy 
+resource "aws_autoscaling_policy" "WebServerScaleUpPolicy" {
+  name                   = "WebServerScaleUpPolicy"
+  scaling_adjustment     = 1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 60
+  autoscaling_group_name = "${aws_autoscaling_group.asg.name}"
+}
+
+# Scale down policy
+resource "aws_autoscaling_policy" "WebServerScaleDownPolicy" {
+  name                   = "WebServerScaleDownPolicy"
+  scaling_adjustment     = -1
+  adjustment_type        = "ChangeInCapacity"
+  cooldown               = 60
+  autoscaling_group_name = "${aws_autoscaling_group.asg.name}"
+}
+
+# Scale up when average CPU usage is above 5%. Increment by 1.
+resource "aws_cloudwatch_metric_alarm" "CPUAlarmHigh" {
+  alarm_name          = "CPUAlarmHigh"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "05"
+
+  dimensions = {
+    AutoScalingGroupName = "${aws_autoscaling_group.asg.name}"
+  }
+
+  alarm_description = "Scale-up if CPU > 5% for 2 minutes"
+  alarm_actions     = ["${aws_autoscaling_policy.WebServerScaleUpPolicy.arn}"]
+}
+
+# Scale down when average CPU usage is below 3%. Decrement by 1
+resource "aws_cloudwatch_metric_alarm" "CPUAlarmLow" {
+  alarm_name          = "CPUAlarmLow"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "03"
+
+  dimensions = {
+    AutoScalingGroupName = "${aws_autoscaling_group.asg.name}"
+  }
+
+  alarm_description = "Scale-down if CPU < 3% for 2 minutes"
+  alarm_actions     = ["${aws_autoscaling_policy.WebServerScaleDownPolicy.arn}"]
+}
+
+# Application Load Balancer For Your Web Application
+resource "aws_lb" "webapp-lb" {
+  name               = "webapp-lb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = ["${aws_security_group.lbSecurityGroup.id}"]
+  ip_address_type    = "ipv4"
+  enable_deletion_protection = false
+  subnets = ["${aws_subnet.subnet1.id}","${aws_subnet.subnet2.id}","${aws_subnet.subnet3.id}"]
+  tags = {
+    Environment = "production"
+  }
+
+}
+
+resource "aws_lb_target_group" "lb-target-group" {
+  health_check {
+    interval            = 10
+    path                = "/"
+    protocol            = "HTTP"
+    timeout             = 5
+    healthy_threshold   = 5
+    unhealthy_threshold = 2
+  }
+  name        = "lb-target-group"
+  port        = 8080
+  protocol    = "HTTP"
+  target_type = "instance"
+  vpc_id      = "${aws_vpc.csye6225_vpc.id}"
+}
+
+#  Application load balancer to accept HTTP traffic on port 80 and forward it to your application instances on whatever port it listens on.
+resource "aws_lb_listener" "webapp-lb-listener" {
+  load_balancer_arn = "${aws_lb.webapp-lb.arn}"
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = "${aws_lb_target_group.lb-target-group.arn}"
+  }
+}
+
+resource "aws_route53_record" "lbAlias" {
+  zone_id = var.zoneId
+  name    = var.record_name
+  type    = "A"
+
+  alias {
+    name                   = "${aws_lb.webapp-lb.dns_name}"
+    zone_id                = "${aws_lb.webapp-lb.zone_id}"
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_security_group" "lbSecurityGroup" {
+  name        = "lbSecurityGroup"
+  description = "Allow TLS inbound traffic"
+  vpc_id      = "${aws_vpc.csye6225_vpc.id}"
+
+  ingress{
+  description = "Allow inbound HTTPS traffic"
+  from_port = "443"
+  to_port = "443"
+  protocol = "tcp"
+  cidr_blocks = [var.routeTable_cidr]
+  }
+
+  ingress{
+  description = "Allow inbound HTTP traffic"
+  from_port = "80"
+  to_port = "80"
+  protocol = "tcp"
+  cidr_blocks = [var.routeTable_cidr]
+  }
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags ={
+    Name = "application security group"
+  }
+}
+
+resource "aws_security_group_rule" "applicationSecurityGroupRule" {
+  type              = "ingress"
+  from_port         = 8080
+  to_port           = 8080
+  protocol          = "tcp"
+  security_group_id = "${aws_security_group.app_security_group.id}"
+  # cidr_blocks = ["0.0.0.0/0"]
+  source_security_group_id = "${aws_security_group.lbSecurityGroup.id}"
+} 
+
+
+
+
+
+
+
+
+
+
