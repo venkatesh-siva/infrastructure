@@ -498,6 +498,12 @@ resource "aws_codedeploy_deployment_group" "example" {
     enabled = true
     events  = ["DEPLOYMENT_FAILURE"]
   }
+  autoscaling_groups = [aws_autoscaling_group.asg.name]
+  load_balancer_info {
+    target_group_info {
+      name = "${aws_lb_target_group.lb-target-group.name}"
+    }
+  }
   ec2_tag_set {
     ec2_tag_filter {
       key   = "Name"
