@@ -732,12 +732,190 @@ resource "aws_security_group_rule" "applicationSecurityGroupRule" {
   source_security_group_id = "${aws_security_group.lbSecurityGroup.id}"
 } 
 
+// Create SNS topic
+resource "aws_sns_topic" "sns_topic" {
+  name = "email-customer"
+}
+
+resource "aws_sns_topic_subscription" "subscribe_to_sns_topic" {
+    topic_arn = "${aws_sns_topic.sns_topic.arn}"
+    protocol  = "lambda"
+    endpoint  = "${aws_lambda_function.emailOnSNS.arn}"
+}
+
+// Create IAM role for  lambda function
+resource "aws_iam_role" "iamRoleForlambda" {
+  name = "iamRoleForlambda"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role_policy.json
+}
+
+#assume_role_policy JSON data for Lambda Functions 
+data "aws_iam_policy_document" "lambda_assume_role_policy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+# Create Lambda function
+resource "aws_lambda_function" "emailOnSNS" {
+  role          = "${aws_iam_role.iamRoleForlambda.arn}"
+  s3_bucket     = "codedeploy.prod.venkateshcsye6225.me"
+  s3_key        = "lambda-0.0.1-SNAPSHOT.jar"    
+  function_name    = "emailOnSNS"
+  runtime          = "${var.lambda_runtime}"
+  handler          = "${var.lambda_function_handler}"
+  memory_size      = 2400
+  timeout          = 120
+  environment {
+    variables = {
+      SendersEmail = var.SendersEmail
+    }
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "SNSAccessToEC2Role" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+  role = "${aws_iam_role.CodeDeployEC2ServiceRole.name}"
+}
+
+resource "aws_iam_role_policy_attachment" "DynamoDbAccessToLambdaFunctionRole" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+  role = "${aws_iam_role.iamRoleForlambda.name}"
+}
+
+resource "aws_iam_role_policy_attachment" "S3AccessToLambdaFunctionRole" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  role = "${aws_iam_role.iamRoleForlambda.name}"
+}
+
+resource "aws_iam_role_policy_attachment" "SESAccessToLambdaFunctionRole" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSESFullAccess"
+  role = "${aws_iam_role.iamRoleForlambda.name}"
+}
+
+resource "aws_iam_role_policy_attachment" "SNSAccessToLambdaFunctionRole" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSNSFullAccess"
+  role = "${aws_iam_role.iamRoleForlambda.name}"
+}
+
+resource "aws_iam_role_policy_attachment" "BasicExecutionAccessToLambdaFunctionRole" {
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+  role = "${aws_iam_role.iamRoleForlambda.name}"
+}
+
+#IAM Policy for Lambda to allow SNS event to trigger it
+resource "aws_iam_policy" "lambda_sns_policy" {
+ name = "lambda_sns_policy"
+ 
+ policy = <<-EOF
+{
+ "Statement":[
+ {"Condition":
+ {"ArnLike":{"AWS:SourceArn":"${aws_sns_topic.sns_topic.arn}"}},
+ "Resource":"${aws_lambda_function.emailOnSNS.arn}",
+ "Action":"lambda:invokeFunction",
+ "Sid":"",
+ "Effect":"Allow"
+ }],
+ "Id":"default",
+ "Version":"2012-10-17"
+}
+ EOF
+}
 
 
+ 
+#Policy to be attached with Lambda role
+resource "aws_iam_role_policy_attachment" "lambda_snsinvokepolicy_attacher" {
+ role = aws_iam_role.iamRoleForlambda.name
+ policy_arn = aws_iam_policy.lambda_sns_policy.arn
+}
+
+resource "aws_iam_policy" "ghaction-lambda-update-policy" {
+  name        = "ghaction-lambda-update-policy"
+  description = "Allows cicd user to access lambda function"
+
+   policy = <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:DescribeChangeSet",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:DescribeStacks",
+                "cloudformation:GetTemplate",
+                "cloudformation:ListStackResources",
+                "cloudwatch:*",
+                "cognito-identity:ListIdentityPools",
+                "cognito-sync:GetCognitoEvents",
+                "cognito-sync:SetCognitoEvents",
+                "dynamodb:*",
+                "ec2:DescribeSecurityGroups",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeVpcs",
+                "events:*",
+                "iam:GetPolicy",
+                "iam:GetPolicyVersion",
+                "iam:GetRole",
+                "iam:GetRolePolicy",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListRolePolicies",
+                "iam:ListRoles",
+                "iam:PassRole",
+                "iot:AttachPrincipalPolicy",
+                "iot:AttachThingPrincipal",
+                "iot:CreateKeysAndCertificate",
+                "iot:CreatePolicy",
+                "iot:CreateThing",
+                "iot:CreateTopicRule",
+                "iot:DescribeEndpoint",
+                "iot:GetTopicRule",
+                "iot:ListPolicies",
+                "iot:ListThings",
+                "iot:ListTopicRules",
+                "iot:ReplaceTopicRule",
+                "kinesis:DescribeStream",
+                "kinesis:ListStreams",
+                "kinesis:PutRecord",
+                "kms:ListAliases",
+                "lambda:*",
+                "logs:*",
+                "s3:*",
+                "sns:ListSubscriptions",
+                "sns:ListSubscriptionsByTopic",
+                "sns:ListTopics",
+                "sns:Publish",
+                "sns:Subscribe",
+                "sns:Unsubscribe",
+                "sqs:ListQueues",
+                "sqs:SendMessage",
+                "tag:GetResources",
+                "xray:PutTelemetryRecords",
+                "xray:PutTraceSegments"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+EOF
+}
+// Attaching ghaction-lamba-update-policy to cicd user
+resource "aws_iam_user_policy_attachment" "ghaction-attach-lambda-update-Policy" {
+  user       = var.ghactions_username
+  policy_arn = "${aws_iam_policy.ghaction-lambda-update-policy.arn}"
+}
 
 
-
-
-
-
-
+resource "aws_lambda_permission" "allow_sns" {
+  action        = "lambda:*"
+  function_name = "${aws_lambda_function.emailOnSNS.function_name}"
+  principal     = "sns.amazonaws.com"
+  source_arn    = "arn:aws:sns:us-east-1:599351014538:email-customer"
+}

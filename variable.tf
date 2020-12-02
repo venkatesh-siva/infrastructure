@@ -144,3 +144,19 @@ variable "codedeploy_bucket_arn_star"{
 variable "cloudwatch_policy_arn"{
  default = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
+
+variable "lambda_payload_filename" {
+  default = "csye6225-lambda-4.jar"
+}
+
+variable "lambda_runtime" {
+  default = "java8"
+}
+
+variable "lambda_function_handler" {
+  default = "edu.csye.lambda.event.EmailEvent::handleRequest"
+}
+
+variable "SendersEmail" {
+  default = "donotreply@prod.venkateshcsye6225.me"
+}
